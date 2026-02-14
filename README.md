@@ -10,11 +10,11 @@ View your app in AI Studio: https://ai.studio/apps/drive/1I1BbbPs4x5z-9oSZjN5GbF
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Важно:** не открывайте `index.html` напрямую в браузере (двойной клик или Live Server) — будут ошибки 404. Приложение нужно запускать через Vite.
 
+**Нужно:** Node.js
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. Установите зависимости: `npm install`
+2. Создайте файл `.env.local` и укажите `GEMINI_API_KEY=ваш_ключ` (см. `.env.example`)
+3. Запустите приложение: **`npm run dev`**
+4. Откройте в браузере: **http://localhost:3000**
