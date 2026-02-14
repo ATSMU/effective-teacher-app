@@ -8,10 +8,29 @@ interface LandingProps {
 const LOGO_URL = 'https://www.tajmedun.tj/bitrix/templates/tajmedun/images/logo_new2.png';
 const BUILDING_URL = 'https://www.tajmedun.tj/upload/iblock/05d/52326262333_ab3dba849e_o.jpg';
 
+const TESTIMONIALS = [
+  { name: 'Ситора Хусниддиновна', department: 'Кафедра анатомии человека', quote: 'Я пришла на тренинг с сомнением, ожидая усталость после занятий, но уже с первого дня полностью изменила своё мнение. Энергия и профессионализм лекторов вдохновили меня пересмотреть подход к преподаванию. Я научилась правильно готовить презентации и поняла разницу между педагогикой и андрогогикой. Теперь стремлюсь стать эффективным преподавателем XXI века.' },
+  { name: 'Назаров А.А.', department: 'Кафедра психиатрии', quote: 'После курса я выбрал активные методы обучения как основной инструмент своей работы. Планирую внедрять их в практику и наблюдать, как меняется вовлечённость студентов и их отношение к занятиям.' },
+  { name: 'Мухтабар Насриева', department: 'Кафедра пропедевтики внутренних болезней', quote: 'Студентцентрированное обучение полностью изменило мой взгляд на проведение занятий. Я начала внедрять интерактивные методы и проводить рефлексию после практических занятий. Курс дал мне мотивацию к постоянному профессиональному развитию.' },
+  { name: 'Равшан Файзиев', department: 'Кафедра анатомии человека', quote: 'С первых минут стало понятно, что программа отличается глубиной и актуальностью. Я начал применять рефлексию после каждого занятия и активно внедряю новые методы обучения. Курс помог мне стать более современным и компетентным преподавателем.' },
+  { name: 'Бекназарова Г.М.', department: 'Кафедра оториноларингологии', quote: 'Активные методы обучения и современные критерии оценки — это инструменты, которые действительно повышают эффективность преподавания. Их внедрение позволит качественно готовить будущих врачей.' },
+  { name: 'Акрами Паричехра', department: 'Кафедра акушерства и гинекологии №2', quote: 'Я пересмотрела свою роль на занятиях: теперь преподаватель — это консультант, а студент — партнёр. Уже на следующий день я изменила формат лекции и почувствовала эффективность нового подхода.' },
+  { name: 'Адылова Фарзона', department: 'Кафедра оториноларингологии', quote: 'Студентцентрированное и симуляционное обучение — эффективные инструменты подготовки будущих врачей. Они позволяют формировать практические компетенции без риска для пациента.' },
+  { name: 'Бобоев Фирдавс', department: 'Кафедра фармакологии', quote: 'Самой ценной темой для меня стала рефлексия. Теперь я системно применяю её в работе и стремлюсь быть компетентным андрогогом.' },
+  { name: 'София Тулаганова', department: 'Кафедра анатомии человека', quote: 'Несмотря на насыщенную программу и вечернее время, занятия проходили на одном дыхании. Мы узнали о современных инновационных методах обучения и почувствовали себя снова студентами.' },
+  { name: 'Сайёра Саидова', department: 'Кафедра терапии', quote: 'Методы TBL, PBL и CBL делают преподавателя наставником и мотиватором. Интерактивные подходы повышают интерес студентов к поиску знаний. Курс помог мне развить лидерские качества.' },
+  { name: 'З.Т. Уралова', department: 'Кафедра гигиены и экологии', quote: 'Мы получили современные знания об интерактивных методах и Болонском процессе. Эти подходы уже применяются на наших занятиях.' },
+  { name: 'Ошур Озоди', department: 'Кафедра гистологии', quote: 'Курс позволил систематизировать мой педагогический опыт. Принципы андрогогики подтвердили правильность партнёрского подхода к студентам, который я теперь применяю увереннее.' },
+  { name: 'Абдумамадова Ф.М.', department: 'Кафедра внутренних болезней №2', quote: 'Курс полностью оправдал ожидания: сильные лекторы, актуальные темы и реальные инструменты для практики. Полученные знания напрямую влияют на профессиональный рост преподавателя.' },
+  { name: 'Махмадкулова Н.А.', department: 'Кафедра оперативной хирургии', quote: 'Теперь я понимаю, как сделать студентов активными участниками обучения. Курс дал фундамент для дальнейшего развития педагогической деятельности.' },
+  { name: 'Дильноза Пирматова', department: 'Кафедра акушерства и гинекологии №1', quote: 'Каждая лекция была профессиональной и содержательной. Курс помог усовершенствовать навыки преподавания и укрепить профессиональные связи между кафедрами.' },
+];
+
 const Landing: React.FC<LandingProps> = ({ onEnter }) => {
   const [timelineModal, setTimelineModal] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [visible, setVisible] = useState<Set<number>>(new Set([0]));
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -33,6 +52,13 @@ const Landing: React.FC<LandingProps> = ({ onEnter }) => {
     );
     sections.forEach((el) => io.observe(el));
     return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setTestimonialIndex((i) => (i + 1) % TESTIMONIALS.length);
+    }, 7000);
+    return () => clearInterval(t);
   }, []);
 
   const scrollToProgram = () => {
@@ -356,8 +382,64 @@ const Landing: React.FC<LandingProps> = ({ onEnter }) => {
         </div>
       </section>
 
-      {/* Block 11 — CTA */}
+      {/* Block 10.5 — Отзывы */}
       <section data-landing-section={10} data-anim="slide-up" className={`py-20 sm:py-28 bg-slate-900 transition-all duration-700 ${visible.has(10) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white text-center mb-4">Что говорят о курсе преподаватели</h2>
+          <p className="text-slate-400 text-center max-w-xl mx-auto mb-12">Отзывы тех, кто уже прошёл программу</p>
+
+          <div className="relative max-w-3xl mx-auto">
+            <div className="rounded-2xl bg-slate-800/80 border border-slate-700/50 p-6 sm:p-8 md:p-10 min-h-[280px] flex flex-col">
+              <svg className="w-10 h-10 text-[#10408A]/60 shrink-0 mb-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden><path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.998 3.638-3.998 5.849h3.983v10h-9.981z" /></svg>
+              <blockquote className="text-slate-200 text-base sm:text-lg leading-relaxed flex-1">
+                «{TESTIMONIALS[testimonialIndex].quote}»
+              </blockquote>
+              <footer className="mt-6 pt-4 border-t border-slate-700/50 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#10408A]/30 text-[#6ba3f5] flex items-center justify-center text-lg font-black shrink-0">
+                  {TESTIMONIALS[testimonialIndex].name.charAt(0)}
+                </div>
+                <div>
+                  <p className="font-bold text-white">{TESTIMONIALS[testimonialIndex].name}</p>
+                  <p className="text-sm text-slate-400">{TESTIMONIALS[testimonialIndex].department}</p>
+                </div>
+              </footer>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => setTestimonialIndex((i) => (i - 1 + TESTIMONIALS.length) % TESTIMONIALS.length)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+                aria-label="Предыдущий отзыв"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <div className="flex gap-2 flex-wrap justify-center">
+                {TESTIMONIALS.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setTestimonialIndex(i)}
+                    className={`w-2.5 h-2.5 rounded-full transition-all ${i === testimonialIndex ? 'bg-[#10408A] scale-125' : 'bg-slate-600 hover:bg-slate-500'}`}
+                    aria-label={`Отзыв ${i + 1}`}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestimonialIndex((i) => (i + 1) % TESTIMONIALS.length)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+                aria-label="Следующий отзыв"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Block 11 — CTA */}
+      <section data-landing-section={11} data-anim="slide-up" className={`py-20 sm:py-28 bg-slate-900 transition-all duration-700 ${visible.has(11) ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
         <div className="max-w-2xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white mb-6">Готовы модернизировать своё преподавание?</h2>
           <button

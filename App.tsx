@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Lesson, Task, TaskResult, TestResult, User, Review, Question, ApiFetchResponse, ScheduleItem } from './types';
+import { View, Lesson, Task, TaskResult, TestResult, User, Review, Question, ApiFetchResponse, ScheduleItem, Recommendation } from './types';
 import { apiService } from './services/apiService';
 import Dashboard from './components/Dashboard';
 import LessonForm from './components/LessonForm';
@@ -13,6 +13,8 @@ import UsersView from './components/UsersView';
 import AnalyticsView from './components/AnalyticsView';
 import ValidationView from './components/ValidationView';
 import ScheduleView from './components/ScheduleView';
+import ProgressView from './components/ProgressView';
+import RecommendationsView from './components/RecommendationsView';
 import Login from './components/Login';
 import Landing from './components/Landing';
 
@@ -39,6 +41,8 @@ const App: React.FC = () => {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [testInProgress, setTestInProgress] = useState(false);
   const [blockReason, setBlockReason] = useState<'nav' | 'logout' | null>(null);
+
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   const logoUrl = "https://www.tajmedun.tj/bitrix/templates/tajmedun/images/logo_new2.png";
 
@@ -104,6 +108,12 @@ const App: React.FC = () => {
     }
   }, [lessons, isLoading, currentUser]);
 
+  useEffect(() => {
+    if (currentUser?.role === 'admin' && currentView === 'progress') {
+      setCurrentView('schedule');
+    }
+  }, [currentUser?.role, currentView]);
+
   const loadData = async () => {
     setIsLoading(true);
     setLoadError(null);
@@ -148,6 +158,15 @@ const App: React.FC = () => {
         tResults[row.userId][row.taskId] = { ...s, reviews } as unknown as TaskResult;
       });
       setTaskResults(tResults);
+
+      const recList = safeParseArray(result.recommendations ?? (result as Record<string, unknown>).Recommendations);
+      setRecommendations(recList.map((r: Record<string, unknown>) => ({
+        id: String(r.id ?? ''),
+        title: String(r.title ?? ''),
+        content: String(r.content ?? ''),
+        authorName: r.authorName != null ? String(r.authorName) : undefined,
+        createdAt: typeof r.createdAt === 'number' ? r.createdAt : Number(r.createdAt) || Date.now(),
+      })));
     } else {
       setLoadError('Связь с таблицей недоступна. Проверьте интернет или нажмите «Повторить».');
     }
@@ -326,6 +345,25 @@ const App: React.FC = () => {
     syncData('resetProgress', { userId, itemId, type });
   };
 
+  const handleAddRecommendation = (title: string, content: string, authorName: string) => {
+    const rec: Recommendation = {
+      id: 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9),
+      title,
+      content,
+      authorName: authorName || undefined,
+      createdAt: Date.now(),
+    };
+    setRecommendations((prev) => [rec, ...prev]);
+    syncData('saveRecommendation', rec);
+  };
+
+  const handleDeleteRecommendation = (id: string) => {
+    if (window.confirm('Удалить эту рекомендацию?')) {
+      setRecommendations((prev) => prev.filter((r) => r.id !== id));
+      syncData('deleteItem', { sheet: 'Recommendations', id });
+    }
+  };
+
   const handleUpdateUsers = (newUsers: User[]) => {
     setUsers(newUsers);
     const lastUser = newUsers[newUsers.length - 1];
@@ -447,7 +485,8 @@ const App: React.FC = () => {
           <NavItem view="dashboard" label="Занятия" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>} />
           <NavItem view="tasks" label="Задания" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>} />
           <NavItem view="results" label="Результаты" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>} />
-          
+          {!isAdmin && <NavItem view="progress" label="Мой прогресс" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>} />}
+          <NavItem view="recommendations" label="Рекомендации" icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>} />
           {isAdmin && (
             <>
               <div className="pt-4 pb-2 px-4">
@@ -558,6 +597,28 @@ const App: React.FC = () => {
                   onNavigateToLesson={(l) => { setActiveLesson(l); setCurrentView('view-lesson'); }}
                   onNavigateToTask={(t) => { setActiveTask(t); setCurrentView('solve-task'); }}
                   onResetProgress={handleResetProgress}
+                />
+              )}
+
+              {currentView === 'progress' && currentUser && !isAdmin && (
+                <ProgressView
+                  currentUser={currentUser}
+                  lessons={lessons}
+                  tasks={tasks}
+                  lessonResults={lessonResults}
+                  taskResults={taskResults}
+                  onNavigateToLessons={() => setCurrentView('dashboard')}
+                  onNavigateToTasks={() => setCurrentView('tasks')}
+                />
+              )}
+
+              {currentView === 'recommendations' && (
+                <RecommendationsView
+                  recommendations={recommendations}
+                  isAdmin={isAdmin}
+                  currentUserName={currentUser?.name ?? ''}
+                  onAddRecommendation={handleAddRecommendation}
+                  onDeleteRecommendation={handleDeleteRecommendation}
                 />
               )}
 

@@ -112,6 +112,16 @@ export interface ApiFetchResponse {
   results?: Array<{ userId: string; lessonId: string; [key: string]: unknown }>;
   submissions?: Array<{ userId: string; taskId: string; [key: string]: unknown }>;
   reviews?: Array<{ userId: string; taskId: string; adminId: string; grade: number; comment?: string; timestamp: number }>;
+  recommendations?: Recommendation[];
 }
 
-export type View = 'dashboard' | 'create-lesson' | 'edit-lesson' | 'view-lesson' | 'tasks' | 'create-task' | 'edit-task' | 'solve-task' | 'results' | 'review' | 'users' | 'login' | 'analytics' | 'validation' | 'schedule';
+/** Рекомендация от куратора по прохождению курса */
+export interface Recommendation {
+  id: string;
+  title: string;
+  content: string;
+  authorName?: string;
+  createdAt: number;
+}
+
+export type View = 'dashboard' | 'create-lesson' | 'edit-lesson' | 'view-lesson' | 'tasks' | 'create-task' | 'edit-task' | 'solve-task' | 'results' | 'review' | 'users' | 'login' | 'analytics' | 'validation' | 'schedule' | 'progress' | 'recommendations';

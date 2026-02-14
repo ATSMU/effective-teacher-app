@@ -1,6 +1,6 @@
 
 // Ваш текущий URL (убедитесь, что он актуален после обновления скрипта)
-const API_URL = "https://script.google.com/macros/s/AKfycbwkpCEr3ufvX8GuzIkJZeUwC1IVir1ICRZJHyD5EbeZXXmrpImiTySAtnUc9VxGRPIK/exec"
+const API_URL = "https://script.google.com/macros/s/AKfycbyL3fUELcdz-wRzUJL7rWqz3RdJPLcjl40zvQDUe1vQLL_hYJhadCUHw4tKbR1HT_HC/exec"
 
 export const apiService = {
   /**

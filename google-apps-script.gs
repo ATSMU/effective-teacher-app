@@ -16,7 +16,8 @@ const SCHEMA = {
   'Schedule': ['id', 'dayOfWeek', 'lessonId', 'durationHours', 'startTime', 'curators'],
   'Submissions': ['userId', 'taskId', 'response', 'files', 'status', 'timestamp'],
   'Reviews': ['adminId', 'userId', 'taskId', 'grade', 'comment', 'timestamp'],
-  'Results': ['userId', 'lessonId', 'score', 'total', 'percentage', 'passed', 'timestamp', 'answers', 'attempts', 'attemptsHistory', 'invalidated', 'invalidReason']
+  'Results': ['userId', 'lessonId', 'score', 'total', 'percentage', 'passed', 'timestamp', 'answers', 'attempts', 'attemptsHistory', 'invalidated', 'invalidReason'],
+  'Recommendations': ['id', 'title', 'content', 'authorName', 'createdAt']
 };
 
 function initStructure() {
@@ -126,6 +127,9 @@ function doPost(e) {
         break;
       case 'saveScheduleItem':
         upsertRecord('Schedule', data, ['id']);
+        break;
+      case 'saveRecommendation':
+        upsertRecord('Recommendations', data, ['id']);
         break;
       case 'deleteItem':
         deleteRecord(data.sheet, data.id);
