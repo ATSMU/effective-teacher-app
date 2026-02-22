@@ -73,6 +73,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
   const [testStartTime, setTestStartTime] = useState<number | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(20 * 60);
   const [showExitTestModal, setShowExitTestModal] = useState(false);
+  const [showViolationWarningModal, setShowViolationWarningModal] = useState(false);
   const TEST_DURATION_SEC = 20 * 60;
 
   const existingHistory = useMemo<TestAttempt[]>(() => {
@@ -114,11 +115,18 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
     return () => { Object.values(objectUrls).forEach(URL.revokeObjectURL); };
   }, [objectUrls]);
 
+  const didSwitchAwayRef = useRef(false);
   useEffect(() => {
     if (isAdmin || testFinished || !testConfirmedStart) return;
     const onVisibilityChange = () => {
       if (document.hidden) {
+        didSwitchAwayRef.current = true;
         setTabSwitchCount(prev => prev + 1);
+      } else {
+        if (didSwitchAwayRef.current) {
+          setShowViolationWarningModal(true);
+          didSwitchAwayRef.current = false;
+        }
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -395,12 +403,30 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
               <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full bg-rose-100 flex items-center justify-center">
                 <svg className="w-7 h-7 sm:w-8 sm:h-8 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
               </div>
-              <p className="text-base sm:text-lg font-black text-slate-900">Если Вы выйдите, ваш тест будет аннулирован</p>
-              <p className="text-slate-500 text-xs sm:text-sm">Результаты не сохранятся и попытка будет засчитана. Вы уверены?</p>
+              <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">Если Вы выйдите, ваш тест будет аннулирован</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">Результаты не сохранятся и попытка будет засчитана. Вы уверены?</p>
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                <button onClick={() => setShowExitTestModal(false)} className="flex-1 py-4 px-6 bg-slate-100 text-slate-700 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-200 transition-all min-h-[48px]">Остаться</button>
+                <button onClick={() => setShowExitTestModal(false)} className="flex-1 py-4 px-6 bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-all min-h-[48px]">Остаться</button>
                 <button onClick={() => invalidateTest('user-exit')} className="flex-1 py-4 px-6 bg-rose-500 text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-rose-600 transition-all min-h-[48px]">Выйти</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Модалка: предупреждение о нарушении (переключение вкладки) */}
+        {showViolationWarningModal && tabSwitchCount >= 1 && tabSwitchCount <= 3 && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm" onClick={() => setShowViolationWarningModal(false)}>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl sm:rounded-[32px] shadow-2xl border border-slate-200 dark:border-slate-600 p-5 sm:p-8 max-w-md w-full text-center space-y-5 sm:space-y-6" onClick={e => e.stopPropagation()}>
+              <div className="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              </div>
+              <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white">Вы нарушили правила</p>
+              <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base">
+                {3 - tabSwitchCount === 2 && 'Осталось 2 нарушения — после этого тест будет аннулирован.'}
+                {3 - tabSwitchCount === 1 && 'Осталось 1 нарушение — при следующем переключении вкладки тест будет аннулирован.'}
+                {3 - tabSwitchCount === 0 && 'При следующем переключении вкладки тест будет аннулирован.'}
+              </p>
+              <button onClick={() => setShowViolationWarningModal(false)} className="w-full py-4 px-6 bg-[#10408A] text-white rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-[#0d336e] transition-all min-h-[48px]">Понятно</button>
             </div>
           </div>
         )}
