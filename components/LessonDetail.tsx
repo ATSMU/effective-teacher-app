@@ -294,7 +294,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
   };
 
   useEffect(() => {
-    if (tabSwitchCount >= 1) {
+    if (tabSwitchCount > 3) {
       invalidateTest();
     }
   }, [tabSwitchCount]);
