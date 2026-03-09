@@ -20,8 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare redirect page
+      - name: Prepare redirect page (only this page is deployed)
         run: |
+          rm -rf dist
           mkdir -p dist
           cp redirect-index.html dist/index.html
 
