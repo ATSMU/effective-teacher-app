@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Task, TaskResult, LessonFile, Review, User } from '../types';
+import { apiService } from '../services/apiService';
 
 interface ReviewViewProps {
   tasks: Task[];
@@ -17,13 +18,14 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
   const [comment, setComment] = useState('');
   const [activeFileIndex, setActiveFileIndex] = useState<number | null>(null);
   const [fileUrls, setFileUrls] = useState<Record<number, string>>({});
+  const [fullSubFiles, setFullSubFiles] = useState<LessonFile[] | null>(null);
   
   // Новые состояния для фильтрации и вкладок
   const [streamFilter, setStreamFilter] = useState('all');
   const [viewTab, setViewTab] = useState<'pending' | 'all'>('pending');
 
   const uniqueStreams = useMemo(() => {
-    return Array.from(new Set(users.map(u => u.stream).filter(Boolean))).sort();
+    return Array.from(new Set(users.map(u => String(u.stream || '')).filter(Boolean))).sort();
   }, [users]);
 
   const allSubmissionsFlat = useMemo(() => {
@@ -48,7 +50,7 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
   const filteredSubmissions = useMemo(() => {
     return allSubmissionsFlat.filter(sub => {
       // Фильтр по потоку
-      const matchesStream = streamFilter === 'all' || sub.userStream === streamFilter;
+      const matchesStream = streamFilter === 'all' || String(sub.userStream || '') === streamFilter;
       if (!matchesStream) return false;
 
       // Фильтр по вкладке
@@ -77,7 +79,16 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
     setActiveFileIndex(null);
     Object.values(fileUrls).forEach(URL.revokeObjectURL);
     setFileUrls({});
-    
+    setFullSubFiles(null);
+
+    if (selectedSubKey) {
+      const [userId, taskId] = selectedSubKey.split('_');
+      apiService.getSubmissionFull(userId, taskId).then(full => {
+        const f = full as { files?: LessonFile[] } | null;
+        if (f?.files) setFullSubFiles(f.files);
+      }).catch(() => {});
+    }
+
     const myReview = selectedSubmission?.reviews?.find(r => r.adminId === sessionUser.id);
     if (myReview) {
       setGrade(myReview.grade);
@@ -89,8 +100,9 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
   }, [selectedSubKey, selectedSubmission, sessionUser.id]);
 
   useEffect(() => {
-    if (activeFileIndex !== null && selectedSubmission?.files?.[activeFileIndex]) {
-      const file = selectedSubmission.files[activeFileIndex];
+    const files = fullSubFiles ?? selectedSubmission?.files ?? [];
+    if (activeFileIndex !== null && files[activeFileIndex]) {
+      const file = files[activeFileIndex];
       if (!fileUrls[activeFileIndex]) {
         try {
           const base64Data = file.data.includes(',') ? file.data.split(',')[1] : file.data;
@@ -107,7 +119,7 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
         }
       }
     }
-  }, [activeFileIndex, selectedSubmission, fileUrls]);
+  }, [activeFileIndex, selectedSubmission, fullSubFiles, fileUrls]);
 
   const handleGrade = () => {
     if (!selectedSubKey || !selectedSubmission) return;
@@ -271,11 +283,14 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
                   </div>
                 )}
 
-                {selectedSubmission.files && selectedSubmission.files.length > 0 && (
+                {(() => {
+                  const filesToShow = fullSubFiles ?? selectedSubmission.files ?? [];
+                  if (filesToShow.length === 0) return null;
+                  return (
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest ml-1 block">Прикрепленные файлы ({selectedSubmission.files.length})</label>
+                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-300 uppercase tracking-widest ml-1 block">Прикрепленные файлы ({filesToShow.length})</label>
                     <div className="grid gap-4">
-                      {selectedSubmission.files.map((file, idx) => (
+                      {filesToShow.map((file, idx) => (
                         <div key={idx} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-[24px] overflow-hidden shadow-sm transition-all hover:border-[#10408A]/30">
                           <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-700/50 min-w-0 gap-4">
                             <div className="flex items-center gap-3 min-w-0">
@@ -297,7 +312,8 @@ const ReviewView: React.FC<ReviewViewProps & { users: User[] }> = ({ tasks, subm
                       ))}
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 <div className="pt-10 border-t border-slate-100 dark:border-slate-600 space-y-8">
                   <div className="space-y-4">

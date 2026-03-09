@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Lesson, Task, TestResult, TaskResult, User, TestAttempt, LessonFile } from '../types';
+import { apiService } from '../services/apiService';
 
 interface ResultsViewProps {
   lessons: Lesson[];
@@ -21,6 +22,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
   const [resultsTab, setResultsTab] = useState<'lesson' | 'task'>('lesson');
   const [taskResultPreviewFileIndex, setTaskResultPreviewFileIndex] = useState<number | null>(null);
   const [taskResultFileUrls, setTaskResultFileUrls] = useState<Record<number, string>>({});
+  const [taskResultFullFiles, setTaskResultFullFiles] = useState<LessonFile[] | null>(null);
 
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -28,7 +30,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
   const [streamFilter, setStreamFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
 
-  const uniqueStreams = Array.from(new Set(users.map(u => u.stream).filter(Boolean))).sort();
+  const uniqueStreams = Array.from(new Set(users.map(u => String(u.stream || '')).filter(Boolean))).sort();
   const uniqueDepartments = Array.from(new Set(users.map(u => u.department).filter(Boolean))).sort();
 
   const getUserStats = (userId: string) => {
@@ -86,7 +88,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
                             userLogin.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesDateFrom = !filterDateFrom || user.courseStartDate >= new Date(filterDateFrom).getTime();
       const matchesDateTo = !filterDateTo || user.courseEndDate <= new Date(filterDateTo).getTime();
-      const matchesStream = streamFilter === 'all' || user.stream === streamFilter;
+      const matchesStream = streamFilter === 'all' || String(user.stream || '') === streamFilter;
       const matchesDepartment = departmentFilter === 'all' || user.department === departmentFilter;
 
       return matchesSearch && matchesDateFrom && matchesDateTo && matchesStream && matchesDepartment;
@@ -95,34 +97,103 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
 
   const exportToWord = async () => {
     try {
-      const { Document, Packer, Table, TableRow, TableCell, Paragraph } = await import('docx');
+      const { Document, Packer, Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType } = await import('docx');
+
+      const lessonsForExport = lessons.filter(l => (l.questions || []).length > 0);
+      const dateStr = new Date().toLocaleDateString('ru-RU');
+
+      const getLessonPercent = (userId: string, lessonId: string): string => {
+        const res = (allLessonResults[userId] || {})[lessonId];
+        return res ? `${res.percentage}%` : '—';
+      };
+
+      const getTaskPercent = (userId: string, taskId: string): string => {
+        const res = (allTaskResults[userId] || {})[taskId];
+        if (!res || !res.reviews || res.reviews.length === 0) return '—';
+        const avg = res.reviews.reduce((a: number, r: any) => a + r.grade, 0) / res.reviews.length;
+        return `${Math.round((avg / 5) * 100)}%`;
+      };
+
+      const makeCell = (text: string, bold = false, center = true) =>
+        new TableCell({
+          children: [new Paragraph({
+            alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
+            children: [new TextRun({ text: String(text), bold, size: 18, font: 'Times New Roman' })],
+          })],
+        });
+
+      // Заголовочная строка
       const headerRow = new TableRow({
         tableHeader: true,
         children: [
-          new TableCell({ children: [new Paragraph('ФИО')] }),
-          new TableCell({ children: [new Paragraph('Кафедра')] }),
-          new TableCell({ children: [new Paragraph('Прогресс')] }),
-          new TableCell({ children: [new Paragraph('Ср. балл')] }),
+          makeCell('№', true),
+          makeCell('ФИО', true, false),
+          makeCell('Поток', true),
+          makeCell('Кафедра', true, false),
+          ...lessonsForExport.map((_, i) => makeCell(`Занятие ${i + 1}`, true)),
+          ...tasks.map((_, i) => makeCell(`Задание ${i + 1}`, true)),
+          makeCell('Итог', true),
+          makeCell('Статус', true),
         ],
       });
-      const dataRows = filteredUsers.map(user => {
-        const s = getUserStats(user.id);
+
+      // Строки данных
+      const dataRows = filteredUsers.map((user, idx) => {
+        const stats = getUserStats(user.id);
+        const uLessons = allLessonResults[user.id] || {};
+        const uTasks = allTaskResults[user.id] || {};
+        const doneL = lessonsForExport.filter(l => !!uLessons[l.id]).length;
+        const doneT = tasks.filter(t => { const r = uTasks[t.id]; return !!r && r.reviews && r.reviews.length > 0; }).length;
+        const completed = lessonsForExport.length + tasks.length > 0 && doneL === lessonsForExport.length && doneT === tasks.length;
+        const statusText = completed ? 'Завершён' : `Не завершён (занятий: ${doneL}/${lessonsForExport.length}, заданий: ${doneT}/${tasks.length})`;
         return new TableRow({
           children: [
-            new TableCell({ children: [new Paragraph(user.name || '—')] }),
-            new TableCell({ children: [new Paragraph(user.department || '—')] }),
-            new TableCell({ children: [new Paragraph(`${s.completion}%`)] }),
-            new TableCell({ children: [new Paragraph(`${s.average}%`)] }),
+            makeCell(String(idx + 1)),
+            makeCell(user.name || '—', false, false),
+            makeCell(String(user.stream || '—')),
+            makeCell(user.department || '—', false, false),
+            ...lessonsForExport.map(l => makeCell(getLessonPercent(user.id, l.id))),
+            ...tasks.map(t => makeCell(getTaskPercent(user.id, t.id))),
+            makeCell(`${stats.average}%`, true, true),
+            makeCell(statusText, !completed),
           ],
         });
       });
+
       const table = new Table({
         rows: [headerRow, ...dataRows],
-        width: { size: 100, type: 'PERCENTAGE' },
+        width: { size: 100, type: WidthType.PERCENTAGE },
       });
+
       const doc = new Document({
-        sections: [{ children: [table] }],
+        sections: [{
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: 'Отчёт об успеваемости', bold: true, size: 32, font: 'Times New Roman' })],
+            }),
+            new Paragraph({
+              children: [new TextRun({ text: `Дата выгрузки: ${dateStr}   |   Преподавателей: ${filteredUsers.length}`, size: 22, color: '555555', font: 'Times New Roman' })],
+            }),
+            new Paragraph({ children: [new TextRun({ text: '' })] }),
+            table,
+            new Paragraph({ children: [new TextRun({ text: '' })] }),
+            new Paragraph({
+              children: [new TextRun({ text: 'Расшифровка столбцов:', bold: true, size: 20, font: 'Times New Roman' })],
+            }),
+            ...lessonsForExport.map((l, i) =>
+              new Paragraph({
+                children: [new TextRun({ text: `Занятие ${i + 1} — ${l.title}`, size: 18, font: 'Times New Roman' })],
+              })
+            ),
+            ...tasks.map((t, i) =>
+              new Paragraph({
+                children: [new TextRun({ text: `Задание ${i + 1} — ${t.title}`, size: 18, font: 'Times New Roman' })],
+              })
+            ),
+          ],
+        }],
       });
+
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -177,13 +248,25 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
   const activeAttemptIndex = selectedTest?.attemptIndex ?? Math.max(0, attemptsList.length - 1);
   const activeAttempt = attemptsList[activeAttemptIndex];
 
+  useEffect(() => {
+    setTaskResultFullFiles(null);
+    setTaskResultPreviewFileIndex(null);
+    if (selectedTaskResult && selectedUserId) {
+      apiService.getSubmissionFull(selectedUserId, selectedTaskResult.task.id).then(full => {
+        const f = full as { files?: LessonFile[] } | null;
+        if (f?.files) setTaskResultFullFiles(f.files);
+      }).catch(() => {});
+    }
+  }, [selectedTaskResult?.task.id, selectedUserId]);
+
   const handleTaskResultPreviewFile = (idx: number) => {
     if (taskResultPreviewFileIndex === idx) {
       setTaskResultPreviewFileIndex(null);
       return;
     }
     setTaskResultPreviewFileIndex(idx);
-    const file = selectedTaskResult?.result.files?.[idx];
+    const files = taskResultFullFiles ?? selectedTaskResult?.result.files ?? [];
+    const file = files[idx];
     if (!file || file.isLink) return;
     if (taskResultFileUrls[idx]) return;
     const base64 = file.data.startsWith('data:') ? file.data.split(',')[1] : file.data;
@@ -239,6 +322,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
     Object.values(taskResultFileUrls).forEach(URL.revokeObjectURL);
     setTaskResultFileUrls({});
     setTaskResultPreviewFileIndex(null);
+    setTaskResultFullFiles(null);
     setSelectedTaskResult(null);
   };
 
@@ -276,7 +360,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
               >
                 <option value="all">Все потоки</option>
                 {uniqueStreams.map(s => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s}>Поток {s}</option>
                 ))}
               </select>
               <select 
@@ -321,6 +405,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
               <tbody>
                 {filteredUsers.map(user => {
                   const s = getUserStats(user.id);
+                  const userLessonResults = allLessonResults[user.id] || {};
+                  const userTaskResults = allTaskResults[user.id] || {};
+                  const userCompletedLessons = lessonsWithTests.filter(l => !!userLessonResults[l.id]).length;
+                  const userCompletedTasks = tasks.filter(t => { const r = userTaskResults[t.id]; return !!r && r.reviews && r.reviews.length > 0; }).length;
+                  const courseCompleted = lessonsWithTests.length + tasks.length > 0 && userCompletedLessons === lessonsWithTests.length && userCompletedTasks === tasks.length;
                   return (
                     <tr key={user.id} className="hover:bg-slate-50/50 dark:bg-slate-700/50 transition-colors">
                       <td className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-50 dark:border-slate-700">
@@ -330,6 +419,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
                             <p className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm truncate max-w-[150px]">{user.name}</p>
                             <p className="text-[9px] sm:text-xs text-slate-400 dark:text-slate-300 font-bold uppercase tracking-tight">Поток: {user.stream || '—'}</p>
                             <p className="text-[9px] sm:text-xs text-slate-400 dark:text-slate-300 font-bold uppercase tracking-tight">Кафедра: {user.department || '—'}</p>
+                            {courseCompleted
+                              ? <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md text-[9px] font-black uppercase tracking-wide">✓ Курс завершён</span>
+                              : <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[9px] font-black uppercase tracking-wide">Не завершён</span>
+                            }
                           </div>
                         </div>
                       </td>
@@ -376,6 +469,34 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
                    {selectedUserId === sessionUser.id ? 'Вы еще не набрали проходной балл' : 'Слушатель еще не набрал проходной балл'} (проходной — 50% и выше).
                  </p>
                )}
+
+               {(() => {
+                 const allDone = completedLessonsCount === lessonsWithTests.length && completedTasksCount === tasks.length && lessonsWithTests.length + tasks.length > 0;
+                 const isSelf = selectedUserId === sessionUser.id;
+                 if (allDone) {
+                   return (
+                     <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 rounded-xl py-2 px-4">
+                       <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                       <p className="text-sm font-bold">Курс завершён</p>
+                     </div>
+                   );
+                 }
+                 const remainingLessons = lessonsWithTests.length - completedLessonsCount;
+                 const remainingTasks = tasks.length - completedTasksCount;
+                 const parts: string[] = [];
+                 if (remainingLessons > 0) parts.push(`занятий: ${remainingLessons}`);
+                 if (remainingTasks > 0) parts.push(`заданий: ${remainingTasks}`);
+                 return (
+                   <div className="bg-rose-50 text-rose-700 rounded-xl py-3 px-4 text-left space-y-1">
+                     <p className="text-sm font-black">{isSelf ? 'Вы ещё не завершили курс' : 'Курс не завершён'}</p>
+                     <p className="text-xs font-medium">
+                       {isSelf
+                         ? `Для завершения пройдите все занятия и задания. Осталось: ${parts.join(', ')}.`
+                         : `Для завершения преподаватель должен пройти все занятия и задания. Осталось: ${parts.join(', ')}.`}
+                     </p>
+                   </div>
+                 );
+               })()}
             </div>
 
             <div className="bg-white p-4 sm:p-5 rounded-[24px] sm:rounded-[32px] border border-slate-200 dark:border-slate-600 shadow-sm">
@@ -628,11 +749,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
                 ) : (
                   <p className="text-sm text-slate-400 italic">Текстовый ответ не приложен.</p>
                 )}
-                {selectedTaskResult.result.files && selectedTaskResult.result.files.length > 0 && (
+                {(taskResultFullFiles ?? selectedTaskResult.result.files ?? []).length > 0 && (
                   <div className="space-y-3">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Прикреплённые файлы</p>
                     <div className="space-y-2">
-                      {selectedTaskResult.result.files.map((file, idx) => {
+                      {(taskResultFullFiles ?? selectedTaskResult.result.files ?? []).map((file, idx) => {
                         const downloadHref = file.isLink ? file.data : (file.data.startsWith('data:') ? file.data : `data:${file.type};base64,${file.data}`);
                         return (
                           <div key={idx} className="flex flex-wrap items-center justify-between gap-3 p-3 bg-white border border-slate-200 dark:border-slate-600 rounded-xl">
@@ -668,10 +789,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ lessons, tasks, users, isAdmi
                         );
                       })}
                     </div>
-                    {taskResultPreviewFileIndex !== null && selectedTaskResult.result.files?.[taskResultPreviewFileIndex] && (
+                    {taskResultPreviewFileIndex !== null && (taskResultFullFiles ?? selectedTaskResult.result.files ?? [])[taskResultPreviewFileIndex] && (
                       <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-600">
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Просмотр</p>
-                        {renderTaskResultFileContent(selectedTaskResult.result.files[taskResultPreviewFileIndex], taskResultPreviewFileIndex)}
+                        {renderTaskResultFileContent((taskResultFullFiles ?? selectedTaskResult.result.files ?? [])[taskResultPreviewFileIndex], taskResultPreviewFileIndex)}
                       </div>
                     )}
                   </div>

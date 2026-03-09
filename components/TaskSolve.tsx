@@ -96,7 +96,6 @@ const TaskSolve: React.FC<TaskSolveProps> = ({ task, existingResult, onCancel, o
     if (isAdmin || existingResult) return;
     const selectedFiles = e.target.files;
     if (selectedFiles) {
-      // Fix: Add explicit File type to selectedFile in Array.from(selectedFiles).forEach
       Array.from(selectedFiles).forEach((selectedFile: File) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -110,6 +109,8 @@ const TaskSolve: React.FC<TaskSolveProps> = ({ task, existingResult, onCancel, o
         reader.readAsDataURL(selectedFile);
       });
     }
+    // Reset input so the same file can be re-selected after removal
+    e.target.value = '';
   };
 
   const removeFile = (index: number) => {

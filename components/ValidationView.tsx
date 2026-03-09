@@ -56,10 +56,10 @@ const ValidationView: React.FC<ValidationViewProps> = ({ lessons, lessonResults,
       const total = stats[key]?.total || 0;
       const correct = stats[key]?.correct || 0;
       const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
-      const needsMoreData = total < 10;
+      const needsMoreData = total < 5;
       let level: ValidationLevel = 'good';
-      if (total >= 10 && correct === total) level = 'easy';
-      else if (total >= 10 && correct === 0) level = 'hard';
+      if (total >= 5 && accuracy >= 85) level = 'easy';
+      else if (total >= 5 && accuracy <= 30) level = 'hard';
       return {
         key,
         lessonId: info.lessonId,
@@ -152,7 +152,7 @@ const ValidationView: React.FC<ValidationViewProps> = ({ lessons, lessonResults,
       <div>
         <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">Валидация тестов</h2>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-          Легкие — 10/10 правильных, сложные — 0/10, остальные в категории хорошие.
+          Легкие — точность ≥ 85%, сложные — точность ≤ 30% (от 5 попыток). Менее 5 попыток — недостаточно данных.
         </p>
       </div>
 

@@ -52,8 +52,19 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
     const allQuestions = lessonQuestions;
     if (allQuestions.length === 0) return [];
     if (isAdmin) return allQuestions;
+    // Shuffle question order
     const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, 20);
+    const sliced = shuffled.slice(0, 20);
+    // Shuffle options within each question and update correctAnswerIndex accordingly
+    return sliced.map(q => {
+      const pairs = q.options.map((opt, idx) => ({ opt, isCorrect: idx === q.correctAnswerIndex }));
+      const shuffledPairs = [...pairs].sort(() => Math.random() - 0.5);
+      return {
+        ...q,
+        options: shuffledPairs.map(p => p.opt),
+        correctAnswerIndex: shuffledPairs.findIndex(p => p.isCorrect),
+      };
+    });
   }, [lesson.id, lessonQuestions, isAdmin, testSeed]);
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -308,6 +319,10 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
     }
   }, [tabSwitchCount]);
 
+  // Keep a ref to the latest finishTest to avoid stale closure in the timer interval
+  const finishTestRef = useRef(finishTest);
+  finishTestRef.current = finishTest;
+
   useEffect(() => {
     if (!testStartTime || testFinished || isAdmin) return;
     const tick = () => {
@@ -315,7 +330,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
       const left = Math.max(0, TEST_DURATION_SEC - elapsed);
       setRemainingSeconds(left);
       if (left <= 0) {
-        finishTest();
+        finishTestRef.current();
       }
     };
     tick();
@@ -669,7 +684,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
                 <div className="flex items-center gap-6 sm:gap-10 shrink-0">
                   <div className="text-center">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Баллы</p>
-                    <p className="text-3xl font-black text-[#10408A]">{testFinished ? (existingResult ? existingResult.score : correctAnswersCount) : correctAnswersCount}</p>
+                    <p className="text-3xl font-black text-[#10408A]">{testFinished ? (displayResult?.score ?? correctAnswersCount) : correctAnswersCount}</p>
                   </div>
                   <div className="w-[1px] h-10 bg-slate-200"></div>
                   <div className="text-center">
@@ -734,7 +749,7 @@ const LessonDetail: React.FC<LessonDetailProps> = ({ lesson, existingResult, onB
                     </div>
                     <div>
                       <h3 className="text-4xl font-black text-slate-900 tracking-tight">{currentPercentage >= 50 ? 'Поздравляем!' : 'Не совсем удачно'}</h3>
-                      <p className="mt-4 text-slate-500 text-lg font-medium">Ваш итоговый результат: <span className="font-black text-[#10408A] text-2xl">{existingResult ? existingResult.score : correctAnswersCount}</span> из {activeQuestions.length}</p>
+                      <p className="mt-4 text-slate-500 text-lg font-medium">Ваш итоговый результат: <span className="font-black text-[#10408A] text-2xl">{displayResult?.score ?? correctAnswersCount}</span> из {activeQuestions.length}</p>
                     </div>
                     <div className="p-8 bg-slate-50 rounded-[32px] border border-slate-100 max-w-sm mx-auto space-y-2">
                       <p className="text-slate-500 text-sm font-bold leading-relaxed">Результат зафиксирован в системе.</p>

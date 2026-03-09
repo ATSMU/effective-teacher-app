@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [lessonResults, setLessonResults] = useState<Record<string, Record<string, TestResult>>>({});
   
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
+  const [isLoadingLesson, setIsLoadingLesson] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [testInProgress, setTestInProgress] = useState(false);
   const [blockReason, setBlockReason] = useState<'nav' | 'logout' | null>(null);
@@ -206,6 +207,38 @@ const App: React.FC = () => {
     setIsSidebarOpen(false);
   };
 
+  /**
+   * Открыть занятие: если файлы не загружены (light режим) — подгружаем полное занятие.
+   * Questions уже есть в light-версии, поэтому тест доступен сразу.
+   * files.data подтягиваются в фоне — страница открывается мгновенно.
+   */
+  const openLesson = async (lesson: Lesson, targetView: 'view-lesson' | 'edit-lesson') => {
+    setActiveLesson(lesson);
+    setCurrentView(targetView);
+
+    // Проверяем, есть ли уже загруженные файлы (не ссылки)
+    const hasFileData = (lesson.files || []).some(f => !f.isLink && f.data && f.data.length > 0);
+    if (hasFileData) return; // уже полная версия — ничего не делаем
+
+    setIsLoadingLesson(true);
+    try {
+      const full = await apiService.getLessonFull(lesson.id) as Lesson | null;
+      if (full) {
+        // Обновляем только тяжёлые поля чтобы не сбросить тест (questions не трогаем)
+        setActiveLesson(prev => prev ? { ...prev, files: full.files, coverImage: full.coverImage } : full);
+        // Кэшируем в state — следующий раз откроется без запроса
+        setLessons(prev => prev.map(l => l.id === full.id
+          ? { ...l, files: full.files, coverImage: full.coverImage }
+          : l
+        ));
+      }
+    } catch (err) {
+      console.error('Ошибка загрузки занятия:', err);
+    } finally {
+      setIsLoadingLesson(false);
+    }
+  };
+
   const PAYLOAD_SIZE_THRESHOLD = 80000;
   const [isSavingLesson, setIsSavingLesson] = useState(false);
   const handleSaveLesson = async (lesson: Lesson) => {
@@ -234,6 +267,9 @@ const App: React.FC = () => {
         ? lessons.map(l => (l.id === lesson.id ? lesson : l))
         : [...lessons, lesson];
       setLessons(updated);
+      // Инвалидируем кэши, чтобы при следующем открытии загрузились свежие данные
+      apiService.invalidateLessonCache(lesson.id);
+      apiService.invalidateLightCache();
       setCurrentView('dashboard');
     } catch (err) {
       console.error('Ошибка сохранения занятия:', err);
@@ -248,6 +284,8 @@ const App: React.FC = () => {
       const updated = lessons.filter(l => l.id !== id);
       setLessons(updated);
       syncData('deleteItem', { sheet: 'Lessons', id });
+      apiService.invalidateLessonCache(id);
+      apiService.invalidateLightCache();
     }
   };
 
@@ -312,6 +350,8 @@ const App: React.FC = () => {
     };
     setTaskResults(updated);
     syncData('submitTask', { ...result, userId: currentUser.id, taskId });
+    apiService.invalidateSubmissionCache(currentUser.id, taskId);
+    apiService.invalidateLightCache();
     setCurrentView('tasks');
   };
 
@@ -328,6 +368,7 @@ const App: React.FC = () => {
       const myReview = result.reviews.find(r => r.adminId === currentUser?.id);
       if (myReview) {
         syncData('saveReview', { ...myReview, userId, taskId });
+        apiService.invalidateSubmissionCache(userId, taskId);
       }
     }
   };
@@ -537,22 +578,26 @@ const App: React.FC = () => {
                   totalDays={currentUser && currentUser.courseStartDate != null && currentUser.courseEndDate != null ? Math.max(1, Math.ceil(((currentUser.courseEndDate as number) - (currentUser.courseStartDate as number)) / (1000 * 60 * 60 * 24))) : undefined}
                   completedLessons={!currentUser || isAdmin ? undefined : lessons.filter(l => (l.questions || []).length > 0).filter(l => lessonResults[currentUser.id]?.[l.id]).length}
                   totalLessons={lessons.length}
-                  onViewLesson={(l) => { setActiveLesson(l); setCurrentView('view-lesson'); }}
-                  onEditLesson={(l) => { setActiveLesson(l); setCurrentView('edit-lesson'); }}
+                  onViewLesson={(l) => openLesson(l, 'view-lesson')}
+                  onEditLesson={(l) => openLesson(l, 'edit-lesson')}
                   onDeleteLesson={handleDeleteLesson}
                   onCreateNew={() => setCurrentView('create-lesson')}
                 />
               )}
 
               {currentView === 'create-lesson' && <LessonForm onSave={handleSaveLesson} onCancel={() => setCurrentView('dashboard')} isSaving={isSavingLesson} />}
-              {currentView === 'edit-lesson' && activeLesson && <LessonForm initialData={activeLesson} onSave={handleSaveLesson} onCancel={() => setCurrentView('dashboard')} isSaving={isSavingLesson} />}
-              
+              {currentView === 'edit-lesson' && (
+                isLoadingLesson
+                  ? <div className="flex items-center justify-center py-20"><div className="w-10 h-10 border-4 border-[#10408A]/20 border-t-[#10408A] rounded-full animate-spin"></div></div>
+                  : activeLesson && <LessonForm initialData={activeLesson} onSave={handleSaveLesson} onCancel={() => setCurrentView('dashboard')} isSaving={isSavingLesson} />
+              )}
+
               {currentView === 'view-lesson' && activeLesson && (
-                <LessonDetail 
-                  lesson={activeLesson} 
+                <LessonDetail
+                  lesson={activeLesson}
                   existingResult={lessonResults[currentUser.id]?.[activeLesson.id]}
-                  onBack={() => setCurrentView('dashboard')} 
-                  onEdit={() => setCurrentView('edit-lesson')}
+                  onBack={() => setCurrentView('dashboard')}
+                  onEdit={() => openLesson(activeLesson, 'edit-lesson')}
                   onSaveResult={handleSaveLessonResult}
                   onTestInProgressChange={setTestInProgress}
                 />
@@ -591,7 +636,7 @@ const App: React.FC = () => {
                   isAdmin={isAdmin} 
                   allLessonResults={lessonResults}
                   allTaskResults={taskResults}
-                  onNavigateToLesson={(l) => { setActiveLesson(l); setCurrentView('view-lesson'); }}
+                  onNavigateToLesson={(l) => openLesson(l, 'view-lesson')}
                   onNavigateToTask={(t) => { setActiveTask(t); setCurrentView('solve-task'); }}
                   onResetProgress={handleResetProgress}
                 />
@@ -667,7 +712,7 @@ const App: React.FC = () => {
                   isAdmin={isAdmin}
                   onSave={handleSaveScheduleItem}
                   onDelete={handleDeleteScheduleItem}
-                  onNavigateToLesson={(l) => { setActiveLesson(l); setCurrentView('view-lesson'); }}
+                  onNavigateToLesson={(l) => openLesson(l, 'view-lesson')}
                 />
               )}
             </>

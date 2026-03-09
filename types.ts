@@ -18,6 +18,7 @@ export interface Question {
   text: string;
   options: string[];
   correctAnswerIndex: number;
+  difficulty?: 'easy' | 'medium' | 'hard';
 }
 
 export interface QuestionAnswer {

@@ -1,6 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Question } from '../types';
+
+type Difficulty = 'easy' | 'medium' | 'hard';
 
 interface TestBuilderProps {
   onAdd: (q: Question) => void;
@@ -8,14 +10,21 @@ interface TestBuilderProps {
   initialData?: Question;
 }
 
+const difficultyOptions: { val: Difficulty; label: string; cls: string; activeCls: string }[] = [
+  { val: 'easy', label: 'Лёгкий', cls: 'border-slate-200 text-slate-500 hover:border-emerald-300', activeCls: 'bg-emerald-500 text-white border-emerald-500' },
+  { val: 'medium', label: 'Средний', cls: 'border-slate-200 text-slate-500 hover:border-amber-300', activeCls: 'bg-amber-500 text-white border-amber-500' },
+  { val: 'hard', label: 'Сложный', cls: 'border-slate-200 text-slate-500 hover:border-rose-300', activeCls: 'bg-rose-500 text-white border-rose-500' },
+];
+
 const TestBuilder: React.FC<TestBuilderProps> = ({ onAdd, onClose, initialData }) => {
   const [text, setText] = useState(initialData?.text || '');
   const [options, setOptions] = useState(initialData?.options || ['', '', '', '']);
   const [correctIdx, setCorrectIdx] = useState(initialData?.correctAnswerIndex ?? 0);
+  const [difficulty, setDifficulty] = useState<Difficulty | undefined>(initialData?.difficulty as Difficulty | undefined);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text || options.some(o => !o.trim())) {
+    if (!text.trim() || options.some(o => !o.trim())) {
       alert("Пожалуйста, заполните все поля");
       return;
     }
@@ -23,7 +32,8 @@ const TestBuilder: React.FC<TestBuilderProps> = ({ onAdd, onClose, initialData }
       id: initialData?.id || Math.random().toString(36).substr(2, 9),
       text,
       options,
-      correctAnswerIndex: correctIdx
+      correctAnswerIndex: correctIdx,
+      ...(difficulty ? { difficulty } : {}),
     });
   };
 
@@ -39,11 +49,11 @@ const TestBuilder: React.FC<TestBuilderProps> = ({ onAdd, onClose, initialData }
               </svg>
             </button>
           </div>
-          
+
           <div className="p-6 space-y-6">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Вопрос</label>
-              <textarea 
+              <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Текст вопроса..."
@@ -52,19 +62,35 @@ const TestBuilder: React.FC<TestBuilderProps> = ({ onAdd, onClose, initialData }
               />
             </div>
 
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Сложность</label>
+              <div className="flex gap-2">
+                {difficultyOptions.map(({ val, label, cls, activeCls }) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setDifficulty(difficulty === val ? undefined : val)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-black border transition-all ${difficulty === val ? activeCls : cls}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-3">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Варианты ответов</label>
               {options.map((opt, idx) => (
                 <div key={idx} className={`flex items-center gap-3 p-2 rounded-lg border-2 transition-all ${correctIdx === idx ? 'border-indigo-500 bg-indigo-50/30' : 'border-transparent'}`}>
-                  <input 
-                    type="radio" 
-                    name="correct" 
+                  <input
+                    type="radio"
+                    name="correct"
                     checked={correctIdx === idx}
                     onChange={() => setCorrectIdx(idx)}
                     className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
                   />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={opt}
                     onChange={(e) => {
                       const newOpts = [...options];

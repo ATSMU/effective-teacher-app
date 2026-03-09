@@ -7,7 +7,34 @@ function getApiKey(): string {
   return (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || (import.meta as unknown as { env?: { VITE_GEMINI_API_KEY?: string } }).env?.VITE_GEMINI_API_KEY || '';
 }
 
-export const generateTests = async (topic: string, description: string, count: number = 5): Promise<Question[]> => {
+export type QuestionDifficulty = 'easy' | 'medium' | 'hard';
+
+const difficultyPrompt: Record<QuestionDifficulty, string> = {
+  easy: `Уровень сложности: ЛЁГКИЙ.
+- Вопросы на прямое воспроизведение фактов и определений из материала.
+- Правильный ответ очевиден при прочтении материала.
+- Дистракторы (неверные варианты) явно отличаются от правильного.
+- Пример: «Что такое андрагогика?»`,
+
+  medium: `Уровень сложности: СРЕДНИЙ.
+- Вопросы на понимание и применение концепций.
+- Требуют осмысления материала, а не только запоминания.
+- Дистракторы правдоподобны, но отличимы при знании темы.
+- Пример: «Чем метод андрагогики отличается от педагогики в контексте мотивации?»`,
+
+  hard: `Уровень сложности: СЛОЖНЫЙ.
+- Вопросы на анализ, сравнение, критическое мышление или клинические/практические ситуации.
+- Все 4 варианта правдоподобны — только глубокое знание позволяет выбрать верный.
+- Можно использовать формат «выберите наиболее точный ответ» или ситуационные задачи.
+- Пример: «Преподаватель заметил, что слушатели теряют мотивацию на середине курса. Какой принцип андрагогики нарушен и как его восстановить?»`,
+};
+
+export const generateTests = async (
+  topic: string,
+  description: string,
+  count: number = 5,
+  difficulty: QuestionDifficulty = 'medium'
+): Promise<Question[]> => {
   const apiKey = getApiKey();
   if (!apiKey || apiKey === 'PLACEHOLDER_API_KEY') {
     throw new Error(
@@ -21,11 +48,13 @@ export const generateTests = async (topic: string, description: string, count: n
 Тема: ${topic}
 Описание/материал: ${description}
 
-Требования:
+${difficultyPrompt[difficulty]}
+
+Общие требования:
 - Каждый вопрос должен иметь ровно 4 варианта ответа.
 - Один из вариантов — правильный (correctAnswerIndex от 0 до 3).
 - Вопросы и варианты ответов — на русском языке.
-- Вопросы должны проверять понимание материала, а не только факты.
+- Не повторяй одинаковые вопросы.
 
 Верни только валидный JSON-массив объектов с полями: text (строка — текст вопроса), options (массив из 4 строк — варианты ответов), correctAnswerIndex (число 0–3).`;
 
@@ -85,6 +114,7 @@ export const generateTests = async (topic: string, description: string, count: n
         text: typeof q.text === 'string' ? q.text : 'Вопрос без текста',
         options: options.length >= 2 ? options : ['Да', 'Нет', '—', '—'],
         correctAnswerIndex: correctIndex,
+        difficulty,
       };
     });
   } catch (err) {

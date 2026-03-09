@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Lesson, Question, LessonFile } from '../types';
-import { generateTests } from '../services/geminiService';
+import { generateTests, QuestionDifficulty } from '../services/geminiService';
 import TestBuilder from './TestBuilder';
 
-const RichTextEditor: React.FC<{ 
-  value: string; 
-  onChange: (val: string) => void; 
+const RichTextEditor: React.FC<{
+  value: string;
+  onChange: (val: string) => void;
   placeholder?: string;
 }> = ({ value, onChange, placeholder }) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -17,29 +17,101 @@ const RichTextEditor: React.FC<{
   }, [value]);
 
   const handleInput = () => {
-    if (editorRef.current) {
-      onChange(editorRef.current.innerHTML);
-    }
+    if (editorRef.current) onChange(editorRef.current.innerHTML);
   };
 
-  const execCommand = (command: string) => {
-    document.execCommand(command, false);
+  const exec = (command: string, val?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, val);
     handleInput();
   };
 
+  const btnCls = "p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 flex items-center justify-center text-slate-700 transition-all";
+
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#10408A] transition-all">
-      <div className="bg-slate-50 border-b border-slate-200 p-2 flex gap-1">
-        <button type="button" onClick={() => execCommand('bold')} className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 font-bold w-8 h-8 flex items-center justify-center text-slate-700">B</button>
-        <button type="button" onClick={() => execCommand('italic')} className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 italic w-8 h-8 flex items-center justify-center text-slate-700">I</button>
-        <button type="button" onClick={() => execCommand('insertUnorderedList')} className="p-1.5 hover:bg-white rounded border border-transparent hover:border-slate-200 w-8 h-8 flex items-center justify-center text-slate-700">•</button>
+      {/* Панель инструментов */}
+      <div className="bg-slate-50 border-b border-slate-200 p-2 flex flex-wrap gap-0.5">
+
+        {/* Заголовки */}
+        <select
+          onMouseDown={(e) => e.preventDefault()}
+          onChange={(e) => { exec('formatBlock', e.target.value); e.target.value = ''; }}
+          defaultValue=""
+          className="h-8 px-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded hover:border-slate-300 outline-none cursor-pointer mr-1"
+        >
+          <option value="" disabled>Стиль</option>
+          <option value="p">Обычный</option>
+          <option value="h1">Заголовок 1</option>
+          <option value="h2">Заголовок 2</option>
+          <option value="h3">Заголовок 3</option>
+        </select>
+
+        {/* Разделитель */}
+        <div className="w-px h-6 self-center bg-slate-200 mx-1" />
+
+        {/* Начертание */}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('bold')} className={`${btnCls} w-8 h-8 font-black`} title="Жирный (Ctrl+B)">B</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('italic')} className={`${btnCls} w-8 h-8 italic font-bold`} title="Курсив (Ctrl+I)">I</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('underline')} className={`${btnCls} w-8 h-8 underline font-bold`} title="Подчёркивание (Ctrl+U)">U</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('strikeThrough')} className={`${btnCls} w-8 h-8 line-through text-sm`} title="Зачёркивание">S</button>
+
+        {/* Разделитель */}
+        <div className="w-px h-6 self-center bg-slate-200 mx-1" />
+
+        {/* Списки */}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertUnorderedList')} className={`${btnCls} w-8 h-8`} title="Маркированный список">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /><circle cx="2" cy="6" r="1" fill="currentColor" /><circle cx="2" cy="10" r="1" fill="currentColor" /><circle cx="2" cy="14" r="1" fill="currentColor" /><circle cx="2" cy="18" r="1" fill="currentColor" /></svg>
+        </button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertOrderedList')} className={`${btnCls} w-8 h-8 text-xs font-black`} title="Нумерованный список">1.</button>
+
+        {/* Разделитель */}
+        <div className="w-px h-6 self-center bg-slate-200 mx-1" />
+
+        {/* Отступы */}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('outdent')} className={`${btnCls} w-8 h-8`} title="Уменьшить отступ">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 4l-6 8 6 8M3 4v16" /></svg>
+        </button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('indent')} className={`${btnCls} w-8 h-8`} title="Увеличить отступ">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 4l6 8-6 8M3 4v16" /></svg>
+        </button>
+
+        {/* Разделитель */}
+        <div className="w-px h-6 self-center bg-slate-200 mx-1" />
+
+        {/* Выравнивание */}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyLeft')} className={`${btnCls} w-8 h-8`} title="По левому краю">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h10M4 14h16M4 18h10" /></svg>
+        </button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyCenter')} className={`${btnCls} w-8 h-8`} title="По центру">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M7 10h10M4 14h16M7 18h10" /></svg>
+        </button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('justifyRight')} className={`${btnCls} w-8 h-8`} title="По правому краю">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M10 10h10M4 14h16M10 18h10" /></svg>
+        </button>
+
+        {/* Разделитель */}
+        <div className="w-px h-6 self-center bg-slate-200 mx-1" />
+
+        {/* Горизонтальная линия */}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('insertHorizontalRule')} className={`${btnCls} w-8 h-8`} title="Горизонтальная линия">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12h16" /></svg>
+        </button>
+
+        {/* Очистить форматирование */}
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('removeFormat')} className={`${btnCls} w-8 h-8`} title="Очистить форматирование">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
       </div>
-      <div 
+
+      {/* Область редактирования */}
+      <div
         ref={editorRef}
         contentEditable
         onInput={handleInput}
-        className="w-full px-4 py-3 min-h-[200px] outline-none bg-white dark:bg-slate-800 prose dark:prose-invert prose-slate max-w-none"
+        className="w-full px-4 py-3 min-h-[300px] outline-none bg-white dark:bg-slate-800 prose dark:prose-invert prose-slate max-w-none"
         data-placeholder={placeholder}
+        suppressContentEditableWarning
       />
     </div>
   );
@@ -60,6 +132,7 @@ const LessonForm: React.FC<LessonFormProps> = ({ onSave, onCancel, initialData, 
   const [files, setFiles] = useState<LessonFile[]>(initialData?.files || []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiTestCount, setAiTestCount] = useState(5);
+  const [aiDifficulty, setAiDifficulty] = useState<QuestionDifficulty>('medium');
   const [linkInput, setLinkInput] = useState({ name: '', url: '' });
   const [testBuilderData, setTestBuilderData] = useState<{ show: boolean, question?: Question }>({ show: false });
   
@@ -102,7 +175,6 @@ const LessonForm: React.FC<LessonFormProps> = ({ onSave, onCancel, initialData, 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
     if (selectedFiles) {
-      // Fix: Add explicit File type to selectedFile in Array.from(selectedFiles).forEach
       Array.from(selectedFiles).forEach((selectedFile: File) => {
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -117,6 +189,8 @@ const LessonForm: React.FC<LessonFormProps> = ({ onSave, onCancel, initialData, 
         reader.readAsDataURL(selectedFile);
       });
     }
+    // Reset input so the same file can be re-selected after removal
+    e.target.value = '';
   };
 
   const addExternalLink = () => {
@@ -147,7 +221,7 @@ const LessonForm: React.FC<LessonFormProps> = ({ onSave, onCancel, initialData, 
     const plainDescription = description.replace(/<[^>]*>?/gm, '');
     setIsGenerating(true);
     try {
-      const aiQuestions = await generateTests(title, plainDescription, aiTestCount);
+      const aiQuestions = await generateTests(title, plainDescription, aiTestCount, aiDifficulty);
       setQuestions(prev => [...prev, ...aiQuestions]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ошибка при генерации теста. Проверьте API ключ или соединение.';
@@ -325,13 +399,39 @@ const LessonForm: React.FC<LessonFormProps> = ({ onSave, onCancel, initialData, 
                 <p className="text-sm text-slate-500 leading-relaxed">ИИ проанализирует название и описание вашего занятия и подготовит качественные вопросы с вариантами ответов.</p>
                 <div className="flex items-center gap-4 pt-2">
                   <span className="text-xs font-bold text-slate-400">Количество вопросов:</span>
-                  <input 
-                    type="range" min="1" max="20" 
-                    value={aiTestCount} 
+                  <input
+                    type="range" min="1" max="20"
+                    value={aiTestCount}
                     onChange={e => setAiTestCount(parseInt(e.target.value))}
-                    className="accent-[#10408A] cursor-pointer" 
+                    className="accent-[#10408A] cursor-pointer"
                   />
                   <span className="w-8 h-8 rounded-lg bg-[#10408A] text-white flex items-center justify-center font-black text-xs">{aiTestCount}</span>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <span className="text-xs font-bold text-slate-400 shrink-0">Сложность:</span>
+                  <div className="flex gap-2">
+                    {([
+                      { val: 'easy', label: 'Лёгкие', color: 'emerald' },
+                      { val: 'medium', label: 'Средние', color: 'amber' },
+                      { val: 'hard', label: 'Сложные', color: 'rose' },
+                    ] as { val: QuestionDifficulty; label: string; color: string }[]).map(({ val, label, color }) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setAiDifficulty(val)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                          aiDifficulty === val
+                            ? color === 'emerald' ? 'bg-emerald-500 text-white shadow-sm'
+                            : color === 'amber' ? 'bg-amber-500 text-white shadow-sm'
+                            : 'bg-rose-500 text-white shadow-sm'
+                            : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <button 
@@ -348,7 +448,36 @@ const LessonForm: React.FC<LessonFormProps> = ({ onSave, onCancel, initialData, 
                 <div key={q.id} className="group flex items-start justify-between p-5 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-[#10408A]/30 transition-all">
                    <div className="flex items-start gap-4 min-w-0 flex-1">
                       <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{i+1}</span>
-                      <p className="font-bold text-sm text-slate-800 break-words flex-1 pr-4 leading-relaxed">{q.text}</p>
+                      <div className="flex-1 min-w-0 pr-4">
+                        <p className="font-bold text-sm text-slate-800 break-words leading-relaxed">{q.text}</p>
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          {q.difficulty ? (
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              q.difficulty === 'easy' ? 'bg-emerald-100 text-emerald-700' :
+                              q.difficulty === 'hard' ? 'bg-rose-100 text-rose-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>
+                              {q.difficulty === 'easy' ? 'Лёгкий' : q.difficulty === 'hard' ? 'Сложный' : 'Средний'}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Сложность:</span>
+                          )}
+                          {(['easy', 'medium', 'hard'] as const).map(d => (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, difficulty: item.difficulty === d ? undefined : d } : item))}
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase transition-all ${
+                                q.difficulty === d
+                                  ? d === 'easy' ? 'bg-emerald-500 text-white' : d === 'hard' ? 'bg-rose-500 text-white' : 'bg-amber-500 text-white'
+                                  : 'text-slate-300 hover:text-slate-500 opacity-0 group-hover:opacity-100'
+                              }`}
+                            >
+                              {d === 'easy' ? 'Л' : d === 'hard' ? 'С' : 'М'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                    </div>
                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button onClick={() => setTestBuilderData({ show: true, question: q })} className="p-2 text-slate-400 hover:text-[#10408A] transition-colors"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
